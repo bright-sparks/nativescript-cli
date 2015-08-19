@@ -139,6 +139,7 @@ export class IOSUsbLiveSyncService implements IPlatformSpecificUsbLiveSyncServic
 		return this.device.applicationManager.restartApplication(deviceAppData.appIdentifier);
 	}
 }
+$injector.register("iosUsbLiveSyncServiceLocator", {factory: IOSUsbLiveSyncService});
 
 export class AndroidUsbLiveSyncService extends androidLiveSyncServiceLib.AndroidLiveSyncService implements IPlatformSpecificUsbLiveSyncService {
 	constructor(_device: Mobile.IDevice,
@@ -176,3 +177,4 @@ export class AndroidUsbLiveSyncService extends androidLiveSyncServiceLib.Android
 		}).future<void>()();
 	}
 }
+$injector.register("androidUsbLiveSyncServiceLocator", {factory: AndroidUsbLiveSyncService});

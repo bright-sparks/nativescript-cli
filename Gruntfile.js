@@ -73,8 +73,7 @@ module.exports = function(grunt) {
 			devall: {
 				files: ["lib/**/*.ts", 'test/**/*.ts', "!lib/common/node_modules/**/*.ts"],
 				tasks: [
-					'ts:devall',
-					'shell:npm_test'
+					'ts:devall'
 				],
 				options: {
 					atBegin: true,

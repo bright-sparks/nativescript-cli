@@ -1,5 +1,5 @@
 {
-	"DEBUG": false,
+	"DEBUG": true,
 	"USE_PROXY": false,
 	"PROXY_PORT": 8888,
 	"PROXY_HOSTNAME": "127.0.0.1",

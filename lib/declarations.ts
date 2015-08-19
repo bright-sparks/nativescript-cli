@@ -81,6 +81,7 @@ interface IOptions extends ICommonOptions {
 	ignoreScripts: boolean;
 	tnsModulesVersion: string;
 	staticBindings: boolean;
+	port: Number;
 }
 
 interface IProjectFilesManager {
