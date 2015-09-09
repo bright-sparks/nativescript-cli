@@ -190,6 +190,9 @@ class IOSDebugService implements IDebugService {
                     this.$errors.failWithoutHelp(`The application ${projectId} does not appear to be running on ${device.deviceInfo.displayName} or is not built with debugging enabled.`);
                 }
 
+                console.log("receivedNotification!!!!!!!!");
+                console.log(receivedNotification);
+
                 switch (receivedNotification) {
                     case alreadyConnected:
                         this.$errors.failWithoutHelp("A debugger is already connected.");

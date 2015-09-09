@@ -24,6 +24,7 @@ export class PluginsService implements IPluginsService {
 		private $options: IOptions,
 		private $logger: ILogger,
 		private $errors: IErrors,
+		private $pluginVariablesService: IPluginVariablesService,
 		private $projectFilesManager: IProjectFilesManager) { }
 
 	public add(plugin: string): IFuture<void> {
@@ -33,6 +34,10 @@ export class PluginsService implements IPluginsService {
 			if(dependencyData.nativescript) {
 				this.executeNpmCommand(PluginsService.INSTALL_COMMAND_NAME, plugin).wait();
 				this.prepare(dependencyData).wait();
+
+				let pluginData = this.convertToPluginData(dependencyData);
+				this.$pluginVariablesService.savePluginVariablesInProjectFile(pluginData).wait();
+
 				this.$logger.out(`Successfully installed plugin ${dependencyData.name}.`);
 			} else {
 				this.$errors.failWithoutHelp(`${plugin} is not a valid NativeScript plugin. Verify that the plugin package.json file contains a nativescript key and try again.`);
@@ -44,13 +49,19 @@ export class PluginsService implements IPluginsService {
 	public remove(pluginName: string): IFuture<void> {
 		return (() => {
 			let removePluginNativeCodeAction = (modulesDestinationPath: string, platform: string, platformData: IPlatformData) => {
-				let pluginData = this.convertToPluginData(this.getNodeModuleData(pluginName).wait());
-				pluginData.isPlugin = true;
-				return platformData.platformProjectService.removePluginNativeCode(pluginData);
+				return (() => {
+					let pluginData = this.convertToPluginData(this.getNodeModuleData(pluginName).wait());
+					pluginData.isPlugin = true;
+					if(pluginData.pluginVariables) {
+						this.$pluginVariablesService.removePluginVariablesFromProjectFile(pluginData).wait();
+					}
+					platformData.platformProjectService.removePluginNativeCode(pluginData).wait();
+				}).future<void>()();
 			};
 			this.executeForAllInstalledPlatforms(removePluginNativeCodeAction).wait();
 
 			this.executeNpmCommand(PluginsService.UNINSTALL_COMMAND_NAME, pluginName).wait();
+
 			let showMessage = true;
 			let action = (modulesDestinationPath: string, platform: string, platformData: IPlatformData) => {
 				return (() => {
@@ -65,6 +76,8 @@ export class PluginsService implements IPluginsService {
 			if(showMessage) {
 				this.$logger.out(`Succsessfully removed plugin ${pluginName}`);
 			}
+
+			// TODO: Add all another plugins
 		}).future<void>()();
 	}
 
@@ -120,6 +133,8 @@ export class PluginsService implements IPluginsService {
 						platformData.platformProjectService.preparePluginNativeCode(pluginData).wait();
 
 						shelljs.rm("-rf", path.join(pluginDestinationPath, pluginData.name, "platforms"));
+
+						this.$pluginVariablesService.interpolatePluginVariables(pluginData, configurationFilePath).wait();
 
 						// Show message
 						this.$logger.out(`Successfully prepared plugin ${pluginData.name} for ${platform}.`);
@@ -204,6 +219,7 @@ export class PluginsService implements IPluginsService {
 
 		if(pluginData.isPlugin) {
 			pluginData.platformsData = cacheData.nativescript.platforms;
+			pluginData.pluginVariables = cacheData.nativescript.variables;
 		}
 
 		return pluginData;

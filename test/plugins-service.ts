@@ -67,6 +67,10 @@ function createTestInjector() {
 		trackFeature: () => { return future.fromResult(); }
 	});
 	testInjector.register("projectFilesManager", ProjectFilesManager);
+	testInjector.register("pluginVariablesService", {
+		savePluginVariablesInProjectFile: (pluginData: IPluginData) => future.fromResult(),
+		interpolatePluginVariables: (pluginData: IPluginData, configurationFilePath: string) => future.fromResult()
+	});
 
 	return testInjector;
 }

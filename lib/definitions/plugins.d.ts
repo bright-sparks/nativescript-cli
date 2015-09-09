@@ -9,7 +9,8 @@ interface IPluginsService {
 
 interface IPluginData extends INodeModuleData {
 	platformsData: IPluginPlatformsData;
-	pluginPlatformsFolderPath(platform: string): string; 
+	pluginVariables: IDictionary<IPluginVariableData>;
+	pluginPlatformsFolderPath(platform: string): string;
 }
 
 interface INodeModuleData {
@@ -23,4 +24,16 @@ interface INodeModuleData {
 interface IPluginPlatformsData {
 	ios: string;
 	android: string;
+}
+
+interface IPluginVariablesService {
+	savePluginVariablesInProjectFile(pluginData: IPluginData): IFuture<void>;
+	removePluginVariablesFromProjectFile(pluginData: IPluginData): IFuture<void>;
+	interpolatePluginVariables(pluginData: IPluginData, configurationFilePath: string): IFuture<void>;
+}
+
+interface IPluginVariableData  { // extends the schema + name and value
+	default?: string;
+	name?: string;
+	value?: string;
 }

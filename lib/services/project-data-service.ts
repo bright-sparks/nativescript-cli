@@ -11,7 +11,8 @@ export class ProjectDataService implements IProjectDataService {
 	constructor(private $fs: IFileSystem,
 		private $staticConfig: IStaticConfig,
 		private $errors: IErrors,
-		private $logger: ILogger) {
+		private $logger: ILogger,
+		private $injector: IInjector) {
 	}
 
 	public initialize(projectDir: string): void {
@@ -48,7 +49,8 @@ export class ProjectDataService implements IProjectDataService {
 
 	private loadProjectFile(): IFuture<void> {
 		return (() => {
-			assert.ok(this.projectFilePath, "Initialize method of projectDataService is not called");
+			this.initialize(this.$injector.resolve("projectData").projectDir);
+			assert.ok(this.projectFilePath, "Initialize method of projectDataService is not called.");
 
 			if(!this.projectData) {
 				if(!this.$fs.exists(this.projectFilePath).wait()) {
