@@ -29,10 +29,10 @@ interface IPluginPlatformsData {
 interface IPluginVariablesService {
 	savePluginVariablesInProjectFile(pluginData: IPluginData): IFuture<void>;
 	removePluginVariablesFromProjectFile(pluginData: IPluginData): IFuture<void>;
-	interpolatePluginVariables(pluginData: IPluginData, configurationFilePath: string): IFuture<void>;
+	interpolatePluginVariables(pluginData: IPluginData, pluginConfigurationFileContent: string): IFuture<string>;
 }
 
-interface IPluginVariableData  { // extends the schema + name and value
+interface IPluginVariableData {
 	default?: string;
 	name?: string;
 	value?: string;

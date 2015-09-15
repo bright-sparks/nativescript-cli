@@ -1,9 +1,7 @@
 ///<reference path="../.d.ts"/>
 "use strict";
 
-import Future = require("fibers/future");
 import helpers = require("./../common/helpers");
-import * as shell from "shelljs";
 
 export class PluginVariablesService implements IPluginVariablesService {
 	private static PLUGIN_VARIABLES_KEY = "variables";
@@ -23,9 +21,8 @@ export class PluginVariablesService implements IPluginVariablesService {
 				(() => {
 					let pluginVariableValue = this.getPluginVariableValue(pluginVariableData).wait();
 					if(!pluginVariableValue) {
-						this.$errors.failWithoutHelp(`Unable to find value for ${pluginVariableData.name} plugin variable from ${pluginData.name} plugin. Ensure the --var option is specified or the plugin has default value.`);
+						this.$errors.failWithoutHelp(`Unable to find value for ${pluginVariableData.name} plugin variable from ${pluginData.name} plugin. Ensure the --var option is specified or the plugin variable has default value.`);
 					}
-					// TODO: Comply the pluginVariableValue to JSON schema
 					values[pluginVariableData.name] = pluginVariableValue;
 				}).future<void>()()).wait();
 
@@ -39,9 +36,18 @@ export class PluginVariablesService implements IPluginVariablesService {
 		return this.$projectDataService.removeProperty(this.getPluginVariablePropertyName(pluginData));
 	}
 
-	public interpolatePluginVariables(pluginData: IPluginData, configurationFilePath: string): IFuture<void> {
-		return this.executeForAllPluginVariables(pluginData, (pluginVariableData: IPluginVariableData) =>
-			Future.fromResult<void>(shell.sed('-i', `/${pluginVariableData.name}/`, pluginVariableData.value, configurationFilePath)));
+	public interpolatePluginVariables(pluginData: IPluginData, pluginConfigurationFileContent: string): IFuture<string> {
+		return (() => {
+			this.executeForAllPluginVariables(pluginData, (pluginVariableData: IPluginVariableData) =>
+				(() => {
+					if(!pluginVariableData.value) {
+						this.$errors.failWithoutHelp(`Unable to find the value for ${pluginVariableData.name} plugin variable into project package.json file. Verify that your package.json file is correct and try again.`);
+					}
+
+					pluginConfigurationFileContent = pluginConfigurationFileContent.replace(new RegExp(pluginVariableData.name, "gi"), pluginVariableData.value);
+				}).future<void>()()).wait();
+			return pluginConfigurationFileContent;
+		}).future<string>()();
 	}
 
 	private getPluginVariableValue(pluginVariableData: IPluginVariableData): IFuture<string> {
@@ -81,6 +87,7 @@ export class PluginVariablesService implements IPluginVariablesService {
 
 			variableData.name = pluginVariableName;
 
+			this.$projectDataService.initialize(this.$projectData.projectDir);
 			let pluginVariableValues = this.$projectDataService.getValue(this.getPluginVariablePropertyName(pluginData)).wait();
 			variableData.value = pluginVariableValues ? pluginVariableValues[pluginVariableName] : undefined;
 
@@ -93,3 +100,4 @@ export class PluginVariablesService implements IPluginVariablesService {
 	}
 }
 $injector.register("pluginVariablesService", PluginVariablesService);
+

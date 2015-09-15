@@ -49,7 +49,7 @@ export class ProjectDataService implements IProjectDataService {
 
 	private loadProjectFile(): IFuture<void> {
 		return (() => {
-			this.initialize(this.$injector.resolve("projectData").projectDir);
+			//this.initialize(this.$injector.resolve("projectData").projectDir);
 			assert.ok(this.projectFilePath, "Initialize method of projectDataService is not called.");
 
 			if(!this.projectData) {

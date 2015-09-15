@@ -66,7 +66,7 @@ function createPluginData(pluginVariables: any): IPluginData {
 		},
 		pluginVariables: pluginVariables,
 		pluginPlatformsFolderPath: (platform: string) => ""
-	}
+	};
 
 	return pluginData;
 }
@@ -89,7 +89,7 @@ describe("Plugin Variables service", () => {
 			let pluginData = createPluginData(pluginVariables);
 			let	pluginVariablesService = testInjector.resolve("pluginVariablesService");
 
-			let expectedError = `Unable to find value for MY_TEST_PLUGIN_VARIABLE plugin variable from ${pluginData.name} plugin. Ensure the --var option is specified or the plugin has default value.`;
+			let expectedError = `Unable to find value for MY_TEST_PLUGIN_VARIABLE plugin variable from ${pluginData.name} plugin. Ensure the --var option is specified or the plugin variable has default value.`;
 			let actualError: string = null;
 
 			try {
@@ -202,7 +202,132 @@ describe("Plugin Variables service", () => {
 		});
 	});
 
-	describe("plugin prepare", () => {
-		
+	describe("plugin interpolation", () => {
+		it("fails when the plugin value is undefined", () => {
+			createProjectFile(testInjector).wait();
+
+			let pluginVariables = { "MY_VAR": { } };
+			let pluginData = createPluginData(pluginVariables);
+
+			let	pluginVariablesService = testInjector.resolve("pluginVariablesService");
+
+			let expectedError = "Unable to find the value for MY_VAR plugin variable into project package.json file. Verify that your package.json file is correct and try again.";
+			let error: string = null;
+			try {
+				pluginVariablesService.interpolatePluginVariables(pluginData, "").wait();
+			} catch(err) {
+				error = err.message;
+			}
+
+			assert.equal(error, expectedError);
+		});
+
+		it("interpolates correctly plugin variable value", () => {
+			createProjectFile(testInjector).wait();
+
+			let projectData: IProjectData = testInjector.resolve("projectData");
+			let fs: IFileSystem = testInjector.resolve("fs");
+
+			// Write plugin variables values to package.json file
+			let packageJsonFilePath = path.join(projectData.projectDir, "package.json");
+			let data = fs.readJson(packageJsonFilePath).wait();
+			data["nativescript"]["myTestPlugin-variables"] = {
+				"FB_APP_NAME": "myFacebookAppName"
+			};
+			fs.writeJson(packageJsonFilePath, data).wait();
+
+			let pluginVariables = { "FB_APP_NAME": { } };
+			let pluginData = createPluginData(pluginVariables);
+			let	pluginVariablesService = testInjector.resolve("pluginVariablesService");
+			let pluginConfigurationFileContent = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/FB_APP_NAME" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+					'</application>' +
+				'</manifest>';
+			let result = pluginVariablesService.interpolatePluginVariables(pluginData, pluginConfigurationFileContent).wait();
+
+			let expectedResult = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/myFacebookAppName" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+					'</application>' +
+				'</manifest>';
+
+			assert.equal(result, expectedResult);
+		});
+
+		it("interpolates correctly case sensive plugin variable value", () => {
+			createProjectFile(testInjector).wait();
+
+			let projectData: IProjectData = testInjector.resolve("projectData");
+			let fs: IFileSystem = testInjector.resolve("fs");
+
+			// Write plugin variables values to package.json file
+			let packageJsonFilePath = path.join(projectData.projectDir, "package.json");
+			let data = fs.readJson(packageJsonFilePath).wait();
+			data["nativescript"]["myTestPlugin-variables"] = {
+				"FB_APP_NAME": "myFacebookAppName"
+			};
+			fs.writeJson(packageJsonFilePath, data).wait();
+
+			let pluginVariables = { "FB_APP_NAME": { } };
+			let pluginData = createPluginData(pluginVariables);
+			let	pluginVariablesService = testInjector.resolve("pluginVariablesService");
+			let pluginConfigurationFileContent = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/Fb_App_NaMe" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+					'</application>' +
+				'</manifest>';
+			let result = pluginVariablesService.interpolatePluginVariables(pluginData, pluginConfigurationFileContent).wait();
+
+			let expectedResult = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/myFacebookAppName" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+					'</application>' +
+				'</manifest>';
+
+			assert.equal(result, expectedResult);
+		});
+
+		it("interpolates correctly more than one plugin variables values", () => {
+			createProjectFile(testInjector).wait();
+
+			let projectData: IProjectData = testInjector.resolve("projectData");
+			let fs: IFileSystem = testInjector.resolve("fs");
+
+			let packageJsonFilePath = path.join(projectData.projectDir, "package.json");
+			let data = fs.readJson(packageJsonFilePath).wait();
+			data["nativescript"]["myTestPlugin-variables"] = {
+				"FB_APP_NAME": "myFacebookAppName",
+				"FB_APP_URL": "myFacebookAppURl"
+			};
+			fs.writeJson(packageJsonFilePath, data).wait();
+
+			let pluginVariables = { "FB_APP_NAME": { }, "FB_APP_URL": { } };
+			let pluginData = createPluginData(pluginVariables);
+			let	pluginVariablesService = testInjector.resolve("pluginVariablesService");
+			let pluginConfigurationFileContent = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/Fb_App_NaMe" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+						'<activity android:label="@string/FB_APP_url" />' +
+					'</application>' +
+				'</manifest>';
+
+			let result = pluginVariablesService.interpolatePluginVariables(pluginData, pluginConfigurationFileContent).wait();
+
+			let expectedResult = '<?xml version="1.0" encoding="UTF-8"?>' +
+				'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.android.basiccontactables" android:versionCode="1" android:versionName="1.0" >' +
+					'<application android:allowBackup="true" android:icon="@drawable/ic_launcher" android:label="@string/app_name" android:theme="@style/Theme.Sample" >' +
+						'<activity android:label="@string/myFacebookAppName" android:name="com.facebook.LoginActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>' +
+						'<activity android:label="@string/myFacebookAppURl" />' +
+					'</application>' +
+				'</manifest>';
+
+			assert.equal(result, expectedResult);
+		});
 	});
 });

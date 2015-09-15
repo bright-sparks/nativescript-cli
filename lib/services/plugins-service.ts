@@ -15,7 +15,8 @@ export class PluginsService implements IPluginsService {
 		save: true
 	};
 
-	constructor(private $platformsData: IPlatformsData,
+	constructor(private $broccoliBuilder: IBroccoliBuilder,
+		private $platformsData: IPlatformsData,
 		private $npm: INodePackageManager,
 		private $fs: IFileSystem,
 		private $projectData: IProjectData,
@@ -25,7 +26,8 @@ export class PluginsService implements IPluginsService {
 		private $logger: ILogger,
 		private $errors: IErrors,
 		private $pluginVariablesService: IPluginVariablesService,
-		private $projectFilesManager: IProjectFilesManager) { }
+		private $projectFilesManager: IProjectFilesManager,
+		private $npmInstallationManager: INpmInstallationManager) { }
 
 	public add(plugin: string): IFuture<void> {
 		return (() => {
@@ -51,11 +53,38 @@ export class PluginsService implements IPluginsService {
 			let removePluginNativeCodeAction = (modulesDestinationPath: string, platform: string, platformData: IPlatformData) => {
 				return (() => {
 					let pluginData = this.convertToPluginData(this.getNodeModuleData(pluginName).wait());
-					pluginData.isPlugin = true;
+
 					if(pluginData.pluginVariables) {
 						this.$pluginVariablesService.removePluginVariablesFromProjectFile(pluginData).wait();
 					}
+
 					platformData.platformProjectService.removePluginNativeCode(pluginData).wait();
+
+					// Remove the plugin and call merge for another plugins that have configuration file
+					let pluginConfigurationFilePath = this.getPluginConfigurationFilePath(pluginData, platformData);
+					if(this.$fs.exists(pluginConfigurationFilePath).wait()) {
+						let tnsModulesDestinationPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME, constants.TNS_MODULES_FOLDER_NAME);
+						let nodeModules = this.$broccoliBuilder.getChangedNodeModules(tnsModulesDestinationPath, platform).wait();
+						_.each(nodeModules, (index, nodeModule) => {
+							let data = this.convertToPluginData(this.getNodeModuleData(pluginName).wait());
+							if(data.isPlugin) {
+								if(this.$fs.exists(this.getPluginConfigurationFilePath(data, platformData)).wait()) {
+									if(index === 0) {
+										this.$projectDataService.initialize(this.$projectData.projectDir);
+										let frameworkVersion = this.$projectDataService.getValue(platformData.frameworkPackageName).wait().version;
+										this.$npm.cache(platformData.frameworkPackageName, frameworkVersion).wait();
+
+										let relativeConfigurationFilePath = path.relative(platformData.projectRoot, platformData.configurationFilePath);
+										let cachedPackagePath = this.$npmInstallationManager.getCachedPackagePath(platformData.frameworkPackageName, frameworkVersion);
+										let cachedConfigurationFilePath = path.join(cachedPackagePath, constants.PROJECT_FRAMEWORK_FOLDER_NAME, relativeConfigurationFilePath);
+
+										shelljs.cp("-f", cachedConfigurationFilePath, platformData.configurationFilePath);
+									}
+									this.merge(data, platformData).wait();
+								}
+							}
+						});
+					}
 				}).future<void>()();
 			};
 			this.executeForAllInstalledPlatforms(removePluginNativeCodeAction).wait();
@@ -76,8 +105,6 @@ export class PluginsService implements IPluginsService {
 			if(showMessage) {
 				this.$logger.out(`Succsessfully removed plugin ${pluginName}`);
 			}
-
-			// TODO: Add all another plugins
 		}).future<void>()();
 	}
 
@@ -104,27 +131,13 @@ export class PluginsService implements IPluginsService {
 					}
 
 					if(this.$fs.exists(path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME)).wait()) {
-
 						this.$fs.ensureDirectoryExists(pluginDestinationPath).wait();
 						shelljs.cp("-Rf", pluginData.fullPath, pluginDestinationPath);
 
-						let pluginPlatformsFolderPath = path.join(pluginDestinationPath, pluginData.name, "platforms", platform);
-						let pluginConfigurationFilePath = path.join(pluginPlatformsFolderPath, platformData.configurationFileName);
-						let configurationFilePath = platformData.configurationFilePath;
+						let pluginConfigurationFilePath = this.getPluginConfigurationFilePath(pluginData, platformData);
 
 						if(this.$fs.exists(pluginConfigurationFilePath).wait()) {
-							// Validate plugin configuration file
-							let pluginConfigurationFileContent = this.$fs.readText(pluginConfigurationFilePath).wait();
-							this.validateXml(pluginConfigurationFileContent, pluginConfigurationFilePath);
-
-							// Validate configuration file
-							let configurationFileContent = this.$fs.readText(configurationFilePath).wait();
-							this.validateXml(configurationFileContent, configurationFilePath);
-
-							// Merge xml
-							let resultXml = this.mergeXml(configurationFileContent, pluginConfigurationFileContent, platformData.mergeXmlConfig || []).wait();
-							this.validateXml(resultXml);
-							this.$fs.writeFile(configurationFilePath, resultXml).wait();
+							this.merge(pluginData, platformData).wait();
 						}
 
 						this.$projectFilesManager.processPlatformSpecificFiles(pluginDestinationPath, platform).wait();
@@ -133,8 +146,6 @@ export class PluginsService implements IPluginsService {
 						platformData.platformProjectService.preparePluginNativeCode(pluginData).wait();
 
 						shelljs.rm("-rf", path.join(pluginDestinationPath, pluginData.name, "platforms"));
-
-						this.$pluginVariablesService.interpolatePluginVariables(pluginData, configurationFilePath).wait();
 
 						// Show message
 						this.$logger.out(`Successfully prepared plugin ${pluginData.name} for ${platform}.`);
@@ -191,21 +202,20 @@ export class PluginsService implements IPluginsService {
 		return _.keys(require(packageJsonFilePath).dependencies);
 	}
 
-	private getNodeModuleData(moduleName: string): IFuture<INodeModuleData> {
+	private getNodeModuleData(module: string): IFuture<INodeModuleData> { // module can be  modulePath or moduleName
 		return (() => {
-			let packageJsonFilePath = this.getPackageJsonFilePathForModule(moduleName);
-			if(this.$fs.exists(packageJsonFilePath).wait()) {
-				let data = require(packageJsonFilePath);
-				return {
-					name: data.name,
-					version: data.version,
-					fullPath: path.dirname(packageJsonFilePath),
-					isPlugin: data.nativescript !== undefined,
-					moduleInfo: data.nativescript
-				};
+			if(!this.$fs.exists(module).wait()) {
+				module = this.getPackageJsonFilePathForModule(module);
 			}
 
-			return null;
+			let data = this.$fs.readJson(module).wait();
+			return {
+				name: data.name,
+				version: data.version,
+				fullPath: path.dirname(module),
+				isPlugin: data.nativescript !== undefined,
+				moduleInfo: data.nativescript
+			};
 		}).future<INodeModuleData>()();
 	}
 
@@ -214,12 +224,13 @@ export class PluginsService implements IPluginsService {
 		pluginData.name = cacheData.name;
 		pluginData.version = cacheData.version;
 		pluginData.fullPath = cacheData.directory || path.dirname(this.getPackageJsonFilePathForModule(cacheData.name));
-		pluginData.isPlugin = !!cacheData.nativescript;
+		pluginData.isPlugin = !!cacheData.nativescript || !!cacheData.moduleInfo;
 		pluginData.pluginPlatformsFolderPath = (platform: string) => path.join(pluginData.fullPath, "platforms", platform);
+		let data = cacheData.nativescript || cacheData.moduleInfo;
 
 		if(pluginData.isPlugin) {
-			pluginData.platformsData = cacheData.nativescript.platforms;
-			pluginData.pluginVariables = cacheData.nativescript.variables;
+			pluginData.platformsData = data.platforms;
+			pluginData.pluginVariables = data.variables;
 		}
 
 		return pluginData;
@@ -305,6 +316,33 @@ export class PluginsService implements IPluginsService {
 			}
 		});
 		doc.parseFromString(xml, 'text/xml');
+	}
+
+	private merge(pluginData: IPluginData, platformData: IPlatformData): IFuture<void> {
+		return (() => {
+			let pluginConfigurationFilePath = this.getPluginConfigurationFilePath(pluginData, platformData);
+			let configurationFilePath = platformData.configurationFilePath;
+
+			// Validate plugin configuration file
+			let pluginConfigurationFileContent = this.$fs.readText(pluginConfigurationFilePath).wait();
+			pluginConfigurationFileContent = this.$pluginVariablesService.interpolatePluginVariables(pluginData, pluginConfigurationFileContent).wait();
+			this.validateXml(pluginConfigurationFileContent, pluginConfigurationFilePath);
+
+			// Validate configuration file
+			let configurationFileContent = this.$fs.readText(configurationFilePath).wait();
+			this.validateXml(configurationFileContent, configurationFilePath);
+
+			// Merge xml
+			let resultXml = this.mergeXml(configurationFileContent, pluginConfigurationFileContent, platformData.mergeXmlConfig || []).wait();
+			this.validateXml(resultXml);
+			this.$fs.writeFile(configurationFilePath, resultXml).wait();
+		}).future<void>()();
+	}
+
+	private getPluginConfigurationFilePath(pluginData: IPluginData, platformData: IPlatformData): string {
+		 let pluginPlatformsFolderPath = pluginData.pluginPlatformsFolderPath(platformData.normalizedPlatformName.toLowerCase());
+		 let pluginConfigurationFilePath = path.join(pluginPlatformsFolderPath, platformData.configurationFileName);
+		 return pluginConfigurationFilePath;
 	}
 }
 $injector.register("pluginsService", PluginsService);
