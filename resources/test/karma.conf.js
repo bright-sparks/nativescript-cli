@@ -62,6 +62,11 @@ module.exports = function(config) {
       ios: {
         base: 'NS',
         platform: 'ios'
+      },
+      ios_simulator: {
+        base: 'NS',
+        platform: 'ios',
+        arguments: ['--emulator']
       }
     },
 

@@ -177,11 +177,17 @@ class TestInitCommand implements ICommand {
 $injector.registerCommand("test|init", TestInitCommand);
 
 function RunKarmaTestCommandFactory(platform: string) {
-	return function RunKarmaTestCommand($projectData: IProjectData) {
+	return function RunKarmaTestCommand(
+		$projectData: IProjectData,
+		$options: IOptions
+		) {
 		this.execute = (args: string[]): IFuture<void> => {
 			return (() => {
 				var pathToKarma = path.join($projectData.projectDir, 'node_modules/karma');
 				var KarmaServer = require(path.join(pathToKarma, 'lib/server'));
+				if (platform === 'ios' && $options.emulator) {
+					platform = 'ios_simulator';
+				}
 				new KarmaServer({
 					browsers: [platform],
 					configFile: path.join($projectData.projectDir, 'karma.conf.js'),
