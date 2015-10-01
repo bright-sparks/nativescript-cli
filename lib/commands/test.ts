@@ -40,12 +40,8 @@ class TestExecutionService implements ITestExecutionService {
 			let projectFilesPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			
 			this.$platformService.preparePlatform(platform).wait();
+			this.detourEntryPoint(projectFilesPath).wait();
 
-			var packageJsonPath = path.join(projectFilesPath, 'package.json');
-			var packageJson = this.$fs.readJson(packageJsonPath).wait();
-			packageJson.main = TestExecutionService.MAIN_APP_NAME;
-			this.$fs.writeJson(packageJsonPath, packageJson).wait();
-			
 			var configJs = this.generateConfig(this.$options.port);
 			this.$fs.writeFile(path.join(projectFilesPath, TestExecutionService.CONFIG_FILE_NAME), configJs).wait();
 			
@@ -64,10 +60,12 @@ class TestExecutionService implements ITestExecutionService {
 				}
 			};
 
-			let notInstalledAppOnDeviceAction = (device: Mobile.IDevice): IFuture<void> => {
+			let notInstalledAppOnDeviceAction = (device: Mobile.IDevice): IFuture<boolean> => {
 				return (() => {
-					this.$platformService.deployOnDevice(platform).wait();
-				}).future<void>()();
+					this.$platformService.installOnDevice(platform).wait();
+					this.detourEntryPoint(projectFilesPath).wait();
+					return true;
+				}).future<boolean>()();
 			}
 
 			let notRunningiOSSimulatorAction = (): IFuture<void> => {
@@ -98,6 +96,15 @@ class TestExecutionService implements ITestExecutionService {
 	}
 
 	allowedParameters: ICommandParameter[] = [];
+	
+	private detourEntryPoint(projectFilesPath: string): IFuture<void> {
+		return (() => {
+			var packageJsonPath = path.join(projectFilesPath, 'package.json');
+			var packageJson = this.$fs.readJson(packageJsonPath).wait();
+			packageJson.main = TestExecutionService.MAIN_APP_NAME;
+			this.$fs.writeJson(packageJsonPath, packageJson).wait();
+		}).future<void>()();
+	}
 	
 	private generateConfig(port: Number): string {
 		let nics = os.networkInterfaces();

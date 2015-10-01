@@ -255,8 +255,8 @@ export class PlatformService implements IPlatformService {
 			});
 		}).future<void>()();
 	}
-
-	public deployOnDevice(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
+	
+	public installOnDevice(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
 		return (() => {
 			platform = platform.toLowerCase();
 			this.ensurePlatformInstalled(platform).wait();
@@ -282,6 +282,12 @@ export class PlatformService implements IPlatformService {
 				}).future<void>()();
 			};
 			this.$devicesServices.execute(action).wait();
+		}).future<void>()();
+	}
+
+	public deployOnDevice(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
+		return (() => {
+			this.installOnDevice(platform, buildConfig).wait();
 			this.$commandsService.tryExecuteCommand("device", ["run", this.$projectData.projectId]).wait();
 		}).future<void>()();
 	}

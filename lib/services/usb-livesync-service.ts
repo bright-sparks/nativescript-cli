@@ -60,8 +60,11 @@ export class UsbLiveSyncService extends usbLivesyncServiceBaseLib.UsbLiveSyncSer
 
 			let projectFilesPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 
-			let notInstalledAppOnDeviceAction = (device: Mobile.IDevice): IFuture<void> => {
-				return this.$platformService.deployOnDevice(platform);
+			let notInstalledAppOnDeviceAction = (device: Mobile.IDevice): IFuture<boolean> => {
+				return (() => {
+					this.$platformService.deployOnDevice(platform).wait();
+					return false;
+				}).future<boolean>()();
 			};
 
 			let notRunningiOSSimulatorAction = (): IFuture<void> => {
