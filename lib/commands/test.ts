@@ -144,7 +144,7 @@ class TestInitCommand implements ICommand {
 
 	public execute(args: string[]) : IFuture<void> {
 		return (() => {
-			var frameworks = ['jasmine'/*, 'mocha', 'qunit', 'nodeunit', 'nunit'*/];
+			var frameworks = ['jasmine', 'mocha'/*, 'qunit', 'nodeunit', 'nunit'*/];
 			var frameworkToInstall = this.$prompter.promptForChoice('Select testing framework:', frameworks).wait();
 			var projectDir = this.$projectData.projectDir;
 
