@@ -179,7 +179,8 @@ $injector.registerCommand("test|init", TestInitCommand);
 function RunKarmaTestCommandFactory(platform: string) {
 	return function RunKarmaTestCommand(
 		$projectData: IProjectData,
-		$options: IOptions
+		$options: IOptions,
+		$config: IConfiguration
 		) {
 		this.execute = (args: string[]): IFuture<void> => {
 			return (() => {
@@ -188,10 +189,14 @@ function RunKarmaTestCommandFactory(platform: string) {
 				if (platform === 'ios' && $options.emulator) {
 					platform = 'ios_simulator';
 				}
-				new KarmaServer({
+				var karmaConfig: any = {
 					browsers: [platform],
 					configFile: path.join($projectData.projectDir, 'karma.conf.js'),
-				}).start();
+				};
+				if ($config.DEBUG) {
+					karmaConfig.logLevel = 'DEBUG';
+				}
+				new KarmaServer(karmaConfig).start();
 			}).future<void>()();
 		}
 		this.allowedParameters = [];
