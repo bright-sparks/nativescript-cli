@@ -203,6 +203,9 @@ function RunKarmaTestCommandFactory(platform: string) {
 				if ($config.DEBUG) {
 					karmaConfig.logLevel = 'DEBUG';
 				}
+				if (!$options.watch) {
+					karmaConfig.singleRun = true;
+				}
 				new KarmaServer(karmaConfig).start();
 			}).future<void>()();
 		}
