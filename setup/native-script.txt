@@ -1,0 +1,24 @@
+
+# A boxter script to setup Windows machine for NativeScript development
+
+# install deps with choco
+
+cinst googlechrome
+cinst nodejs.install -version 0.12.7
+cinst jdk8
+cinst gradle -version 2.3
+cinst android-sdk
+
+# setup android sdk
+echo yes | cmd /c $env:localappdata\Android\android-sdk\tools\android update sdk --filter tools,platform-tools,android-22,build-tools-22.0.1,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
+
+#setup environment
+
+#if (!$env:ANDROID_HOME) { [Environment]::SetEnvironmentVariable("ANDROID_HOME", "$env:localappdata\Android\android-sdk", "User") }
+#if (!$env:JAVA_HOME) { [Environment]::SetEnvironmentVariable("JAVA_HOME", "My Value", "User") }
+#[Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:localappdata\Android\android-sdk\tools;$env:localappdata\Android\android-sdk\platform-tools", "User")
+
+write-host -BackgroundColor Black -ForegroundColor Yellow "This script has modified your environment. You need to log off and log on for the changes to take effect."
+
+# install NativeScript CLI
+npm install -g nativescript
